@@ -1,0 +1,37 @@
+name: kubectl
+summary: Kubectl rock
+description: |
+    A rock containing kubectl.
+license: Apache-2.0
+version: "1.30.2"
+
+base: ubuntu@22.04
+build-base: ubuntu@22.04
+run-user: _daemon_
+
+platforms:
+  amd64:
+  arm64:
+
+environment:
+  APP_VERSION: "1.30.2"
+
+parts:
+  kubectl:
+    plugin: nil
+    source: https://github.com/kubernetes/kubernetes.git
+    source-type: git
+    source-tag: v${CRAFT_PROJECT_VERSION}
+    source-depth: 1
+    build-snaps:
+      - go/1.22/stable
+    build-packages:
+      - rsync
+    build-environment:
+      - FORCE_HOST_GO: y
+      - GOOS: linux
+      - GOARCH: $CRAFT_ARCH_BUILD_FOR
+    override-build: |
+      make clean && make WHAT=cmd/kubectl
+      mkdir -p "${CRAFT_PART_INSTALL}/bin/"
+      cp _output/bin/kubectl "${CRAFT_PART_INSTALL}/bin/"

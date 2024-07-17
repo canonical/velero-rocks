@@ -1,0 +1,73 @@
+# Dockerfile: https://github.com/vmware-tanzu/velero/blob/v1.13.2/Dockerfile
+name: velero
+summary: Velero rock
+description: |
+    A rock containing Velero. Velero gives you tools to back up and restore
+    your Kubernetes cluster resources and persistent volumes.
+license: Apache-2.0
+version: 1.13.2
+
+base: bare
+build-base: ubuntu@22.04
+run-user: _daemon_
+
+platforms:
+  amd64:
+  arm64:
+
+environment:
+  APP_VERSION: 1.13.2
+  RESTIC_VERSION: 0.15.0
+
+parts:
+  add-base-files:
+    plugin: nil
+    stage-packages:
+      - base-files
+
+  build-velero-binary:
+    plugin: go
+    source: https://github.com/vmware-tanzu/velero.git
+    source-type: git
+    source-tag: v${CRAFT_PROJECT_VERSION}
+    source-depth: 1
+    build-snaps:
+      - go/1.21/stable
+    build-environment:
+      - CGO_ENABLED: 0
+      - GO111MODULE: "on"
+      - GOOS: linux
+      - GOARCH: $CRAFT_ARCH_BUILD_FOR
+      - GOPROXY: https://proxy.golang.org
+      - VERSION: $CRAFT_PROJECT_VERSION
+      - PKG: github.com/vmware-tanzu/velero
+      - REGISTRY: canonical
+      - LDFLAGS: >
+          -X ${PKG}/pkg/buildinfo.Version=${VERSION} -X ${PKG}/pkg/buildinfo.ImageRegistry=${REGISTRY}
+    go-generate:
+      - ./cmd/velero
+      - ./cmd/velero-helper
+    organize:
+      bin/velero: ./
+      bin/velero-helper: ./
+
+  build-restic-binary:
+    plugin: nil
+    source: https://github.com/restic/restic.git
+    source-type: git
+    source-tag: v0.15.0
+    source-depth: 1
+    build-snaps:
+      - go/1.21/stable
+    build-environment:
+      - CGO_ENABLED: 0
+      - GO111MODULE: "on"
+      - GOOS: linux
+      - GOARCH: $CRAFT_ARCH_BUILD_FOR
+      - GOPROXY: https://proxy.golang.org
+      - RESTIC_CVE_PATCH: https://raw.githubusercontent.com/vmware-tanzu/velero/v${CRAFT_PROJECT_VERSION}/hack/fix_restic_cve.txt
+    override-build: |
+      set -x
+      curl "${RESTIC_CVE_PATCH}" | git apply -
+      go run build.go --goos "${GOOS}" --goarch "${GOARCH}" -o "${CRAFT_PART_INSTALL}/usr/bin/restic"
+      chmod +x "${CRAFT_PART_INSTALL}/usr/bin/restic"
